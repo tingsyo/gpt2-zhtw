@@ -29,7 +29,7 @@ def main():
     # 2. Loop through downloaded wiki-dumps
     texts_num = 1
     for text in wiki_corpus.get_texts():
-        article = ' '.join(text)
+        article = '\n'.join(text)                   # Concatenate sentences by line break
         article_zhtw = converter.convert(article)   # Convert content to TW-Chinese
     # 3. Write processed article        
         outfile = os.path.join(store_path, 'article_{}.txt'.format(texts_num))
