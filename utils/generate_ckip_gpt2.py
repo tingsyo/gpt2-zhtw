@@ -25,7 +25,7 @@ def main():
         +'\n  Max length: ' + str(args.length)
         +'\n  Trial: ' + str(args.trials))
     # Initialize tokenizer and model
-    tokenizer = BertTokenizerFast.from_pretrained('bert-base-chinese')
+    tokenizer = BertTokenizerFast.from_pretrained('bert-base-chinese', clean_text=True)
     model = AutoModelForCausalLM.from_pretrained('ckiplab/gpt2-base-chinese')
     # Parse seeding string
     input_ids = tokenizer.encode(args.input, return_tensors='pt')
@@ -33,9 +33,10 @@ def main():
     output = []     
     for i in range(args.trials):
         generated = model.generate(input_ids, do_sample=True, max_length=args.length)
-        text = tokenizer.decode(generated[0])           # Decode the generated text
-        text.replace(' ','').replace('[CLS]','')        # Remove the special tokens
-        trial = {'id':i, 'text': text}
+        text = tokenizer.decode(generated[0], 
+                skip_special_tokens= True)          # Decode the generated text
+        text = text.replace(' ','')                 # Remove spaces between tokens
+        trial = {'id':i+1, 'text': text}
         logging.debug(trial)
         output.append(trial)
     # Output
