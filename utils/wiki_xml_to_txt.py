@@ -1,10 +1,18 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
 import logging, os, argparse
 import opencc
-from gensim.corpora import WikiCorpus
-
+#from wikicorpus_with_punctuations import MyWikiCorpus
+from gensim.corpora import WikiCorpus as MyWikiCorpus
 ''' This script converts wikipedia dumps (in XML) to txt with gensim.corpora.WikiCorpus '''
 
+def tokenize(content):
+    #override original method in wikicorpus.py
+    return [token.encode('utf8') for token in content.split() 
+           if len(token) <= 15 and not token.startswith('_')]
+
+def tokenizer_func(text: str, token_min_len: int, token_max_len: int, lower: bool) -> list:
+    return [token for token in text.split() if token_min_len <= len(token) <= token_max_len]
 #-----------------------------------------------------------------------
 def main():
     '''    '''
@@ -21,18 +29,19 @@ def main():
     else:
         logging.basicConfig(level=logging.DEBUG)
     # 1. Initialize WikiCorpus
-    wiki_corpus = WikiCorpus(args.input, dictionary={}, article_min_tokens=args.min_tokens)
+    wiki_corpus = MyWikiCorpus(args.input, lemmatize=False, dictionary={}, lower=False, tokenizer_func=tokenizer_func, article_min_tokens=args.min_tokens)
     converter = opencc.OpenCC('s2tw.json')          # Chinese converter
     # For output
     if not os.path.exists(args.output):
         os.mkdir(args.output)
     # 2. Loop through downloaded wiki-dumps
     texts_num = 1
+    space = " "
     for text in wiki_corpus.get_texts():
-        article = '\n'.join(text)                   # Concatenate sentences by line break
-        article_zhtw = converter.convert(article)   # Convert content to TW-Chinese
+        article = space.join(text) + "\n"                   # Concatenate sentences by line break
+        article_zhtw = converter.convert(article)           # Convert content to TW-Chinese
     # 3. Write processed article        
-        outfile = os.path.join(store_path, 'article_{}.txt'.format(texts_num))
+        outfile = os.path.join(args.output, 'article_{}.txt'.format(texts_num))
         with open(outfile,'w',encoding='utf-8') as output:
             output.write(article_zhtw)
         if texts_num % 10000 == 0:
