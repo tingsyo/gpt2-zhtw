@@ -30,16 +30,24 @@ def main():
     # Parse seeding string
     input_ids = tokenizer.encode(args.input, return_tensors='pt')
     # Generate text
-    output = []     
-    for i in range(args.trials):
-        generated = model.generate(input_ids, do_sample=True, max_length=args.length)
-        text = tokenizer.decode(generated[0], 
-                skip_special_tokens= True)          # Decode the generated text
-        text = text.replace(' ','')                 # Remove spaces between tokens
-        trial = {'id':i+1, 'text': text}
-        logging.debug(trial)
-        output.append(trial)
+    generated = model.generate(input_ids, 
+                            max_length=args.length,  
+                            num_return_sequences=args.trials,
+                            no_repeat_ngram_size=2,
+                            repetition_penalty=1.5,
+                            top_p=0.92,
+                            temperature=.85,
+                            do_sample=True,
+                            top_k=125,
+                            early_stopping=True)
     # Output
+    output=[]
+    for i in range(args.trials):
+        text = tokenizer.decode(generated[i], skip_special_tokens= True)    # Decode the generated text
+        text = text.replace(' ','')                                         # Remove spaces between tokens
+        trial = {'id':i+1, 'text': text}
+        print(text)
+        output.append(trial)
     pd.DataFrame(output).to_csv(args.output, index=False)
     # done
     return(0)
