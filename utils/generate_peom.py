@@ -12,6 +12,7 @@ import pandas as pd
 import numpy as np
 import jieba
 import pickle
+import json
 
 def get_word_vector(word, word_embedding):
     ''' Look-up the word vector from the given word-embedding. '''
@@ -20,7 +21,7 @@ def get_word_vector(word, word_embedding):
     try:
         vec = word_embedding[word]
     except KeyError as e:
-        print(e)
+        logging.debug(e)
         vec = np.zeros((300))
     return(vec)
 
@@ -29,8 +30,11 @@ def evaluate_tokens(tokens, word_embedding):
     n_token = len(tokens)
     vec = np.zeros((300))
     for i in range(n_token):
-        vec = vec + get_word_vector(tokens[i])
-    vec = vec/n_token
+        vec = vec + get_word_vector(tokens[i], word_embedding)
+    if n_token>1:
+        vec = vec/n_token
+    #if n_tokens>0:
+    #    vec = get_word_vector(tokens[0], word_embedding)
     return(vec)
 
 
@@ -50,20 +54,20 @@ def decode_generated_ids(generated, tokenizer):
         output.append(text)
     return(output)
 
-def generate_new_sentences(input, tokenizer, model):
+def generate_new_sentences(input, tokenizer, model, params):
     ''' Generate new sentences with specified model and tokenizer. '''
     # Parse seeding string
     input_ids = tokenizer.encode(input, return_tensors='pt')
     # Generate text
     generated = model.generate(input_ids, 
-                            max_length=50,  
-                            num_return_sequences=10,
-                            no_repeat_ngram_size=2,
-                            repetition_penalty=1.05,
-                            length_penalty=0.8,
-                            top_p=0.8,
-                            temperature=.8,
-                            top_k=128,
+                            max_length=params['max_length'],  
+                            num_return_sequences=params['num_return_sequences'],
+                            no_repeat_ngram_size=params['no_repeat_ngram_size'],
+                            repetition_penalty=params['repetition_penalty'],
+                            length_penalty=params['length_penalty'],
+                            top_p=params['top_p'],
+                            temperature=params['temperature'],
+                            top_k=params['top_k'],
                             do_sample=True,
                             early_stopping=True)
     # Decode
@@ -84,13 +88,14 @@ def postprocess_generated_sentences(sentences, seed_sentence, vdict):
         tokens = list(jieba.cut(temp))          # Tokenize the sentence with jieba
         # Looking for sentence-break symbols
         idxs = [i for i, x in enumerate(tokens) if x in bs]
-        print(len(idxs))
         if len(idxs)>1:                         # Keep tokens before the fisrt break
             tokens = tokens[idxs[0]+1:idxs[1]]
-        elif len(idxs)>0:
-            tokens = tokens[:idxs[0]]
-        else:
-            tokens = tokens
+            logging.debug("Take the segment between the 1st and 2nd punchuations. "+str(len(idxs)))
+        #elif len(idxs)>0:
+        #    tokens = tokens[:idxs[0]]
+        else:                                   # Skip empty sentence
+            logging.debug('The generated sentence is too short, skip it: '+s)
+            continue
         svec = evaluate_tokens(tokens, vdict)   # Calculate the word-embedding vectors of the tokens
         svecs.append(svec)
         stokens.append(tokens)
@@ -102,25 +107,28 @@ def select_next_sentence(candidates, seed_vec):
     ''' Select the best candidate. '''
     scores = []
     for i in range(len(candidates['sentences'])):
-        print(candidates['sentences'][i])
+        logging.debug(candidates['sentences'][i])
         score = np.dot(seed_vec, candidates['wvectors'][i])
-        print(score)
+        logging.debug(score)
         scores.append(score)
     return({'sentence':candidates['sentences'][scores.index(max(scores))], 
             'vector':candidates['wvectors'][scores.index(max(scores))]})
 
 
-
-def generate_poem(seed_sentence, total_lines, we):
+def generate_poem(seed_sentence, model, tokenizer, we, params):
     ''' Generate a poem starting with seed_sentence '''
     output = []
     output.append(seed_sentence)
     seed_vec = evaluate_tokens(list(jieba.cut(seed_sentence)), we)
     # Generate followed-up sentences
-    for i in range(total_lines):
-        generated = generate_new_sentences(seed_sentence, tokenizer, model)
+    for i in range(params['total_lines']):
+        generated = generate_new_sentences(seed_sentence, tokenizer, model, params)
         candidates = postprocess_generated_sentences(generated, seed_sentence, we)
-        selected = select_next_sentence(candidates, seed_vec)
+        if len(candidates['sentences'])>0:
+            selected = select_next_sentence(candidates, seed_vec)
+        else:
+            logging.debug('No, available generated sentences, skip empty step: '+str(i))
+            continue
         output.append(''.join(selected['sentence']))
         seed_vec = selected['vector']
         seed_sentence = ''.join(selected['sentence'])
@@ -132,16 +140,18 @@ def generate_poem(seed_sentence, total_lines, we):
 def main():
     '''    '''
     # Configure Argument Parser
-    parser = argparse.ArgumentParser(description='Retrieve DBZ data for further processing.')
+    parser = argparse.ArgumentParser(description='Generate a poem with specified languag model and starting information.')
+    parser.add_argument('--input', '-i', help='the input information for the starting sentence.')
     parser.add_argument('--config_file', '-c', default=None, help='the configuration file.')
     parser.add_argument('--logfile', '-l', default=None, help='the log file.')
-    parser.add_argument('--random_seed', '-r', default=None, help='the seed for random numbers.')
+    parser.add_argument('--random_seed', '-r', default=None, type=int, help='the seed for random numbers.')
     args = parser.parse_args()
     # Set up logging
     if not args.logfile is None:
         logging.basicConfig(level=logging.DEBUG, filename=args.logfile, filemode='w')
     else:
         logging.basicConfig(level=logging.DEBUG)
+    # Prompt the setting
     logging.debug(args)
     # Default configuration
     TOKENIZER_PATH = '../data/tokenizer_bert_base_chinese'
@@ -166,32 +176,24 @@ def main():
         MODEL_TF = conf['model_tf']
         WORD_EMBEDDING_PATH = conf['word_embedding_path']
         GEN_PARAMS = conf['gen_params']
-    # Prompt the setting
-    logging.info()
     # Initialize tokenizer and model
+    logging.info("Loading tokenizer from "+TOKENIZER_PATH)
     tokenizer = BertTokenizerFast.from_pretrained(TOKENIZER_PATH, clean_text=True)
-    model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, from_tf=MODEL_TF)
+    logging.info("Loading language model from "+MODEL_PATH)
+    model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, from_tf=eval(MODEL_TF))
     # Load word embeddings
+    logging.info("Loading word embedding from "+WORD_EMBEDDING_PATH)
     with open(WORD_EMBEDDING_PATH, 'rb') as f:
         we = pickle.load(f)
     # Generate random numbers
-    np.random.seed(random_seed)                 # Set random-state
+    np.random.seed(args.random_seed)            # Set random-state
     total_lines = np.random.randint( 5,15)      # Define the total lines
-    logging.info('To generate '+str(total_lines)+' sentences in total.')
+    GEN_PARAMS['total_lines'] = total_lines
     # Generate starting sentence
-    output = []
     seed_sentence = generate_starting_sentence(args.input)
-    logging.info('Sentence 0: '+seed_sentence)
-    output.append(seed_sentence)
-    seed_vec = evaluate_tokens(list(jieba.cut(seed_sentence)), we)
+    logging.info('To generate '+str(total_lines)+' sentences starting with ['+seed_sentence+']')
     # Generate followed-up sentences
-    for i in range(total_lines):
-        generated = generate_new_sentences(seed_sentence, tokenizer, model)
-        candidates = postprocess_generated_sentences(generated, seed_sentence, we)
-        selected = select_next_sentence(candidates, seed_vec)
-        output.append(''.join(selected['sentence']))
-        seed_vec = selected['vector']
-        seed_sentence = selected['sentence']
+    output = generate_poem(seed_sentence, model, tokenizer, we, GEN_PARAMS)
     # done
     print(output)
     return(0)
