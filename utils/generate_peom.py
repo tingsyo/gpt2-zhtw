@@ -154,10 +154,10 @@ def main():
     # Prompt the setting
     logging.debug(args)
     # Default configuration
-    TOKENIZER_PATH = '../data/tokenizer_bert_base_chinese'
-    MODEL_PATH = '../model/ckip'
+    TOKENIZER_PATH = '../model/test'
+    MODEL_PATH = '../model/test'
     MODEL_TF = True
-    WORD_EMBEDDING_PATH = 'D:/workspace/word_embedding/zh_wiki_word2vec_300.pkl'
+    WORD_EMBEDDING_PATH = '../model/zh_wiki_word2vec_300.pkl'
     GEN_PARAMS = {
         "max_length": 30,  
         "num_return_sequences": 10,
@@ -178,7 +178,7 @@ def main():
         GEN_PARAMS = conf['gen_params']
     # Initialize tokenizer and model
     logging.info("Loading tokenizer from "+TOKENIZER_PATH)
-    tokenizer = BertTokenizerFast.from_pretrained(TOKENIZER_PATH, clean_text=True)
+    tokenizer = BertTokenizerFast.from_pretrained(TOKENIZER_PATH)
     logging.info("Loading language model from "+MODEL_PATH)
     model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, from_tf=eval(MODEL_TF))
     # Load word embeddings

@@ -26,7 +26,7 @@ def main():
         +'\n  Trial: ' + str(args.trials))
     # Initialize tokenizer and model
     tokenizer = BertTokenizerFast.from_pretrained(args.model_path, clean_text=True)
-    model = AutoModelForCausalLM.from_pretrained(args.model_path)
+    model = AutoModelForCausalLM.from_pretrained(args.model_path, from_tf=True)
     # Parse seeding string
     input_ids = tokenizer.encode(args.input, return_tensors='pt')
     # Generate text
