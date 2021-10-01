@@ -33,7 +33,7 @@ def evaluate_tokens(tokens, word_embedding):
         vec = vec + get_word_vector(tokens[i], word_embedding)
     if n_token>1:
         vec = vec/n_token
-    #if n_tokens>0:
+    #if n_token>0:
     #    vec = get_word_vector(tokens[0], word_embedding)
     return(vec)
 
@@ -79,7 +79,7 @@ def generate_new_sentences(input, tokenizer, model, params):
 def postprocess_generated_sentences(sentences, seed_sentence, vdict):
     ''' Post-process the generated paragraph. '''
     # Define sentence-break symbols
-    bs = ['，','。','；','！','？']
+    bs = ['，','。','；','！','？','「','」']
     # Loop through all generated snetences
     svecs = []
     stokens = []
