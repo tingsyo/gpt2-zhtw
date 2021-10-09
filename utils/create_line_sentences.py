@@ -6,51 +6,82 @@ This script processes corpus document and creates line-sentence documents.
 from __future__ import print_function
 import logging, os, argparse
 import opencc
-#from wikicorpus_with_punctuations import MyWikiCorpus
-from gensim.corpora import WikiCorpus as MyWikiCorpus
-''' This script converts wikipedia dumps (in XML) to txt with gensim.corpora.WikiCorpus '''
+from tqdm import tqdm
 
-def tokenize(content):
-    #override original method in wikicorpus.py
-    return [token.encode('utf8') for token in content.split() 
-           if len(token) <= 15 and not token.startswith('_')]
+def scan_files(datapath):
+    ''' Walk through the input directory to list all files for processing. '''
+    import os
+    urls = []
+    for root, dirs, files in os.walk(datapath, topdown=False):
+       for name in files:
+            if name.startswith('wiki_'):
+                urls.append(os.path.join(root, name))
+    return(urls)
 
-def tokenizer_func(text: str, token_min_len: int, token_max_len: int, lower: bool) -> list:
-    return [token for token in text.split() if token_min_len <= len(token) <= token_max_len]
+
+def process_zh_wiki_file(furl, converter, min_length=1):
+    ''' Process the wikipedia data: each line contains an article in simplified Chinese as a dictionary. '''
+    logging.debug(furl)
+    output = []
+    # 1. Read in lines
+    with open(furl, 'r') as f:
+        raw = f.readlines()
+    # 2. Loop through a list of wikipedia documents
+    for doc in raw:
+        doc = eval(doc)
+        text = doc['text'].split('\n')          # Separate document by line-breaks
+        for p in text:                          # Loop through paragraphs
+            if len(p) >= min_length:
+                output.append(converter.convert(p))
+    # Done
+    return(output)
+
+
+
 #-----------------------------------------------------------------------
 def main():
     '''    '''
     # Configure Argument Parser
     parser = argparse.ArgumentParser(description='Create line sentence document for further processing.')
-    parser.add_argument('--input', '-i', help='the directory containing unprocessed documents.')
+    parser.add_argument('--input', '-i', help='the directory containing input documents.')
     parser.add_argument('--output', '-o', default='output', help='the directory for output txt files.')
-    parser.add_argument('--min_tokens', default=250, type=int, help='the minimal tokens in an article to be included.')
+    parser.add_argument('--min_length', default=4, type=int, help='the minimal tokens in an article to be included.')
+    parser.add_argument('--output_size', default=1000, type=int, help='the number of sentences to included in one output file.')
     parser.add_argument('--logfile', '-l', default=None, help='the log file.')
     args = parser.parse_args()
     # Set up logging
     if not args.logfile is None:
         logging.basicConfig(level=logging.DEBUG, filename=args.logfile, filemode='w')
     else:
-        logging.basicConfig(level=logging.DEBUG)
-    # 1. Initialize WikiCorpus
-    wiki_corpus = MyWikiCorpus(args.input, lemmatize=False, dictionary={}, lower=False, tokenizer_func=tokenizer_func, article_min_tokens=args.min_tokens)
+        logging.basicConfig(level=logging.INFO)
+    logging.debug(args)
+    # 1. Scan for files
+    wikifiles = scan_files(args.input)
+    # 2. Loop through wiki-files
+    num_input_files = len(wikifiles)
+    logging.info("Total input files: "+str(num_input_files))
     converter = opencc.OpenCC('s2tw.json')          # Chinese converter
-    # For output
-    if not os.path.exists(args.output):
+    output = None
+    for i in tqdm(range(num_input_files)):
+        tmp = process_zh_wiki_file(furl=wikifiles[i], converter=converter, min_length=args.min_length)
+        logging.debug('Sentences in file '+wikifiles[i]+': '+str(len(tmp)))
+        if output is None:
+            output = tmp
+        else:
+            output += tmp
+    # 3. Output by part
+    if not os.path.exists(args.output):             # Check output path
         os.mkdir(args.output)
-    # 2. Loop through downloaded wiki-dumps
-    texts_num = 1
-    space = " "
-    for text in wiki_corpus.get_texts():
-        article = space.join(text) + "\n"                   # Concatenate sentences by line break
-        article_zhtw = converter.convert(article)           # Convert content to TW-Chinese
-    # 3. Write processed article        
-        outfile = os.path.join(args.output, 'article_{}.txt'.format(texts_num))
-        with open(outfile,'w',encoding='utf-8') as output:
-            output.write(article_zhtw)
-        if texts_num % 10000 == 0:
-            logging.info("已處理 %d 篇文章" % texts_num)    
-        texts_num += 1
+    num_sentences = len(output)
+    num_output_files = num_sentences//args.output_size + 1
+    logging.info("Output "+str(num_sentences)+" sentences into "+ str(num_output_files)+" files in "+args.output)
+    for j in tqdm(range(num_output_files)):
+        outfile = args.output+'/line_sentence_'+str(j).zfill(6)+'.txt'
+        start_idx = j*args.output_size
+        end_idx = min(len(output), j*args.output_size+args.output_size)
+        tmp = output[start_idx:end_idx]
+        with open(outfile, 'w') as f:
+            f.write('\n'.join(tmp))
     # done
     return(0)
 
