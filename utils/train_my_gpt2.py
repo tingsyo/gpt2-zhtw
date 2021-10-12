@@ -81,11 +81,12 @@ def data_generator(data_files, tokenizer, batch_size=16, buffer_size=10000):
 def main():
     '''    '''
     # Configure Argument Parser
-    parser = argparse.ArgumentParser(description='Create line sentence document for further processing.')
+    parser = argparse.ArgumentParser(description='Train my own GPT-2 with line-sentence data.')
     parser.add_argument('--input', '-i', help='the directory containing input documents.')
-    parser.add_argument('--output', '-o', default='output', help='the directory for output txt files.')
-    parser.add_argument('--model_path', help='the path to store trained model.')
+    parser.add_argument('--model_path', '-m', help='the path to store trained model.')
     parser.add_argument('--logfile', '-l', default=None, help='the log file.')
+    parser.add_argument('--epochs', '-e', default=3, help='epochs of training.')
+    parser.add_argument('--batch_size', '-b', default=16, help='batch-size of training.')
     args = parser.parse_args()
     # Set up logging
     if not args.logfile is None:
@@ -98,17 +99,22 @@ def main():
     num_input_files = len(data_files)
     logging.info("Total training files: "+str(num_input_files))
     # 2. Initialize model
-    model = initialize_gpt2()
+    model = initialize_gpt2(args.model_path)
     tokenizer = BertTokenizerFast.from_pretrained('../model/tokenizer/')
+    model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+        filepath=args.model_path+'/checkpoint',
+        save_weights_only=True,
+        monitor='loss',
+        save_best_only=True)
     # 3. Prepare data
     dg = data_generator(data_files, tokenizer)
     # 4. Train model
     TOTAL_SENTENCES = len(data_files)*1000
-    EPOCHS = 3
-    BATCH_SIZE = 16
-    BUFFER_SIZE = 10000
+    EPOCHS = int(args.epochs)
+    BATCH_SIZE = int(args.batch_size)
     history = model.fit(dg, epochs=EPOCHS, batch_size=BATCH_SIZE, steps_per_epoch=(TOTAL_SENTENCES//BATCH_SIZE)+1)
-    model.save_pretrained(args.output)
+    model.save_pretrained(args.model_path)
+    tokenizer.save_pretrained(args.model_path)
     # done
     return(0)
 

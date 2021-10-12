@@ -10,7 +10,8 @@ def main():
     # Configure Argument Parser
     parser = argparse.ArgumentParser(description='Retrieve DBZ data for further processing.')
     parser.add_argument('--input', '-i', default='人之初，性本善', help='the seeding string.')
-    parser.add_argument('--model_path', '-m', default=None, help='the path to model and tokenizer')
+    parser.add_argument('--model_path', '-m', default=None, help='the path to model')
+    parser.add_argument('--tokenizer_path', '-t', default=None, help='the path to tokenizer')
     parser.add_argument('--length', default=30, type=int, help='the maximal length of generated text.')
     parser.add_argument('--trials', default=5, type=int, help='the number of trials.')
     parser.add_argument('--logfile', '-l', default=None, help='the log file.')
@@ -25,7 +26,7 @@ def main():
         +'\n  Max length: ' + str(args.length)
         +'\n  Trial: ' + str(args.trials))
     # Initialize tokenizer and model
-    tokenizer = BertTokenizerFast.from_pretrained(args.model_path, clean_text=True)
+    tokenizer = BertTokenizerFast.from_pretrained(args.tokenizer_path, clean_text=True)
     model = AutoModelForCausalLM.from_pretrained(args.model_path, from_tf=True)
     # Parse seeding string
     input_ids = tokenizer.encode(args.input, return_tensors='pt')
