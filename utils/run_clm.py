@@ -216,7 +216,7 @@ class SavePretrainedCallback(tf.keras.callbacks.Callback):
 # endregion
 
 # region Data generator
-def sample_generator(dataset, tokenizer):
+def sample_generator(dataset):
     # Trim off the last partial batch if present
     sample_ordering = np.random.permutation(len(dataset))
     for sample_idx in sample_ordering:
