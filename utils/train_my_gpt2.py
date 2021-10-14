@@ -82,7 +82,8 @@ def data_generator(data_files, tokenizer, batch_size=16, buffer_size=10000):
     '''  '''
     # Shuffle data_files
     file_ordering = np.random.permutation(len(data_files))
-    for file_idx in file_ordering[:3]:
+    for file_idx in file_ordering:
+        logging.debug('\tTraining on file: '+data_files[file_idx])
         dataset = process_line_sentence_file(data_files[file_idx], tokenizer)
         dataset = dataset.shuffle(buffer_size).batch(batch_size, drop_remainder=False)
         for example in list(dataset.as_numpy_iterator()):
@@ -122,6 +123,7 @@ def train_model_by_files(data_files, model, tokenizer, epochs=3, batch_size=16, 
     # Shuffle data_files
     file_ordering = np.random.permutation(len(data_files))
     for file_idx in file_ordering[:3]:
+        logging.debug('\tTraining on file: '+data_files[file_idx])
         dataset = process_line_sentence_file(data_files[file_idx], tokenizer)
         # Create data batches
         dataset = dataset.shuffle(buffer_size).batch(batch_size, drop_remainder=False)
@@ -170,9 +172,9 @@ def main():
     model.save_pretrained(args.model_path)
     tokenizer.save_pretrained(args.model_path)
     with open(args.model_path+'/history.log', 'w') as f:
-        f.write(history)
+        f.writelines(history)
     with open(args.model_path+'/generated.log', 'w') as f:
-        f.write(generated)
+        f.writelines(generated)
     # done
     return(0)
 
