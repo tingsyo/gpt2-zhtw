@@ -12,6 +12,8 @@ import argparse
 import numpy as np
 import tensorflow as tf
 from transformers import BertTokenizerFast, TFGPT2LMHeadModel, GPT2Config
+from tqdm import tqdm
+import pickle
 
 myconfig = GPT2Config(
                     n_ctx=1024,
@@ -122,16 +124,18 @@ def train_model_by_files(data_files, model, tokenizer, epochs=3, batch_size=16, 
     history_gen =[]
     # Shuffle data_files
     file_ordering = np.random.permutation(len(data_files))
-    for file_idx in file_ordering[:3]:
+    for i in tqdm(range(3)):
+    #for i in tqdm(range(len(file_ordering))):
+        file_idx = file_ordering[i]
         logging.debug('\tTraining on file: '+data_files[file_idx])
         dataset = process_line_sentence_file(data_files[file_idx], tokenizer)
         # Create data batches
         dataset = dataset.shuffle(buffer_size).batch(batch_size, drop_remainder=False)
-        history = model.fit(dataset, epochs=epochs, batch_size=batch_size, steps_per_epoch=len(dataset))
-        history_loss.append(history)
+        history = model.fit(dataset, epochs=epochs, batch_size=batch_size, steps_per_epoch=len(dataset),verbose=0)
+        history_loss.append(history.history)
         generated = test_clm(model, tokenizer)
-        history_gen.append(generated)
-    return((history_loss, history_gen, model))
+        history_gen.append('File: '+str(i)+'\n'+(generated))
+    return((history_loss, history_gen))
 
 #-----------------------------------------------------------------------
 def main():
@@ -166,15 +170,15 @@ def main():
     # 4. Train model
     EPOCHS = int(args.epochs)
     BATCH_SIZE = int(args.batch_size)
-    history, generated, model = train_model_by_files(data_files, model, tokenizer, epochs=EPOCHS, batch_size=BATCH_SIZE)
+    history, generated = train_model_by_files(data_files, model, tokenizer, epochs=EPOCHS, batch_size=BATCH_SIZE)
     #test_clm(model, tokenizer)
     # 5. Save
     model.save_pretrained(args.model_path)
     tokenizer.save_pretrained(args.model_path)
-    with open(args.model_path+'/history.log', 'w') as f:
-        f.writelines(history)
+    with open(args.model_path+'/history.pkl', 'wb') as f:
+        pickle.dump(history,f)
     with open(args.model_path+'/generated.log', 'w') as f:
-        f.writelines(generated)
+        f.write('\n'.join(generated))
     # done
     return(0)
 
