@@ -19,9 +19,9 @@ myconfig = GPT2Config(
                     n_ctx=1024,
                     n_embd=768,
                     n_head=12,
-                    n_layer=6,
+                    n_layer=12,
                     n_positions=1024,
-                    vocab_size=25129,
+                    vocab_size=8192,
                     use_cache=True,
             )
 
@@ -57,7 +57,7 @@ def process_line_sentence_file(furl, tokenizer):
     with open(furl, 'r') as f:
         sentences = f.readlines()
     # Tokenization with tokenizer.encode()
-    block_size = tokenizer.model_max_length
+    block_size = tokenizer.model_max_length-2
     examples = []
     for sentence in sentences:
         if len(sentence)<=block_size: 
@@ -134,7 +134,7 @@ def train_model_by_files(data_files, model, tokenizer, epochs=3, batch_size=16, 
         history = model.fit(dataset, epochs=epochs, batch_size=batch_size, steps_per_epoch=len(dataset),verbose=0)
         history_loss.append(history.history)
         generated = test_clm(model, tokenizer)
-        history_gen.append('File: '+str(i)+'\n'+(generated))
+        history_gen.append(generated)
     return((history_loss, history_gen))
 
 #-----------------------------------------------------------------------
