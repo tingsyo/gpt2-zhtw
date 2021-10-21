@@ -124,8 +124,8 @@ def train_model_by_files(data_files, model, tokenizer, epochs=3, batch_size=16, 
     history_gen =[]
     # Shuffle data_files
     file_ordering = np.random.permutation(len(data_files))
-    for i in tqdm(range(3)):
-    #for i in tqdm(range(len(file_ordering))):
+    #for i in tqdm(range(3)):
+    for i in tqdm(range(len(file_ordering))):
         file_idx = file_ordering[i]
         logging.debug('\tTraining on file: '+data_files[file_idx])
         dataset = process_line_sentence_file(data_files[file_idx], tokenizer)
@@ -177,8 +177,8 @@ def main():
     tokenizer.save_pretrained(args.model_path)
     with open(args.model_path+'/history.pkl', 'wb') as f:
         pickle.dump(history,f)
-    with open(args.model_path+'/generated.log', 'w') as f:
-        f.write('\n'.join(generated))
+    with open(args.model_path+'/generated.pkl', 'wb') as f:
+        pickle.dump(generated,f)
     # done
     return(0)
 
