@@ -14,8 +14,10 @@ import pickle
 import json
 import requests
 
-STOP_WORDS = ['ETtoday','CrazyWinnie', 'ETTODAY', 'YAHOO新聞', '東森新聞', '-----']
-BASE_URL='http://52.26.156.12:4001/get_json/?'
+STOP_WORDS = ['ETtoday','CrazyWinnie', 'ETTODAY', 'YAHOO新聞', 'Yhoo!新聞',
+              '東森新聞','CTWANT','完整新聞標題','完整新聞內文', '-----']
+BASE_URL = 'http://52.26.156.12:4001/get_json/?'
+MIN_LINES = 15
 
 def retrieve_pttgossip(base_url=BASE_URL, data_date=None):
     if not data_date is None:
@@ -34,7 +36,7 @@ def retrieve_pttgossip(base_url=BASE_URL, data_date=None):
 def article_to_sentences(article, min_length=5):
     ''' Parse an article into a list sentences. '''
     # Define sentence-break symbols
-    bs = ['\n','，','。','；','！','？','「','」','.',':','（','）','／','　','~','：']
+    bs = ['\n','，','。','；','！','？','「','」','.',':','（','）','／','　','~','：','《','》']
     # Loop through the article character-by-character
     sentences = []
     tmp = []
@@ -61,12 +63,12 @@ def evaluate_sentence_embedding(se, term_embeddings, term_weights=None):
     return(score)
 
 
-def generate_starting_sentence(st, min_sentences=10, base_url=BASE_URL, data_date=None):
+def generate_starting_sentence(st, min_sentences=10, base_url=BASE_URL, data_date=None, stop_words=STOP_WORDS):
     ''' Use the seeding information to create the starting sentence. '''
     posts, tfreq = retrieve_pttgossip(base_url=BASE_URL, data_date=data_date)
     #
-    term_embeddings = st.encode(list(tfreq['term'].iloc[:N_TERMS]))
-    term_weights = list(tfreq['score'].iloc[:N_TERMS])
+    term_embeddings = st.encode(list(tfreq['term'].iloc[:min_sentences]))
+    term_weights = list(tfreq['score'].iloc[:min_sentences])
     #
     sent = []
     sent_scores = []
@@ -87,6 +89,8 @@ def generate_starting_sentence(st, min_sentences=10, base_url=BASE_URL, data_dat
     results = pd.DataFrame({'sentence':sent, 'score':sent_scores})
     results = results.sort_values('score', ascending=False).reset_index(drop=True)
     sentence = ''.join(results['sentence'].iloc[:2])
+    logging.debug(results)
+    logging.debug(sentence)
     return(sentence)
 
 
@@ -180,6 +184,11 @@ def select_next_sentence(candidates, embeddings, back_length=3):
         scores.append(score)
     return(candidates[scores.index(max(scores))])
 
+def postprocess_poem(sentences):
+    ''' Post-process the generated poem. '''
+    poem = {'title': sentences[0],
+            'content': '\n'.join(sentences[1:])}
+    return(poem)
 
 def generate_poem(seed_sentence, model, tokenizer, st, params):
     ''' Generate a poem starting with seed_sentence '''
@@ -202,7 +211,7 @@ def generate_poem(seed_sentence, model, tokenizer, st, params):
         seed_vec = selected['embedding']
         seed_sentence = selected['sentence']
     # done
-    poem = '\n'.join(output)
+    poem = postprocess_poem(output)
     return(poem)
 
 #-----------------------------------------------------------------------
@@ -254,16 +263,22 @@ def main():
     logging.info("Loading pre-trained sentence transformer from "+WORD_EMBEDDING_PATH)
     st = SentenceTransformer(WORD_EMBEDDING_PATH)
     # Generate random numbers
-    np.random.seed(args.random_seed)            # Set random-state
-    total_lines = np.random.randint(5,15)       # Define the total lines
+    np.random.seed(args.random_seed)                        # Set random-state
+    total_lines = np.random.randint(MIN_LINES,MIN_LINES+10) # Define the total lines
     GEN_PARAMS['total_lines'] = total_lines
     # Generate starting sentence
+    logging.info('Generating the starting sentence...')
     seed_sentence = generate_starting_sentence(st)
     logging.info('To generate '+str(total_lines)+' sentences starting with ['+seed_sentence+']')
     # Generate followed-up sentences
     output = generate_poem(seed_sentence, model, tokenizer, st, GEN_PARAMS)
     # done
-    print(output)
+    print()
+    print()
+    print(output['title'])
+    print()
+    print()
+    print(output['content'])
     return(0)
 
 #==========
