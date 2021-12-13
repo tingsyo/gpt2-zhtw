@@ -10,26 +10,17 @@ from transformers import BertTokenizerFast, AutoModelForCausalLM
 from sentence_transformers import SentenceTransformer, util
 import pandas as pd
 import numpy as np
-import pickle
 import json
 import requests
 
 STOP_WORDS = ['ETtoday','CrazyWinnie', 'ETTODAY', 'YAHOO新聞', 'Yhoo!新聞',
               '東森新聞','CTWANT','完整新聞標題','完整新聞內文', '-----']
-BASE_URL = 'http://52.26.156.12:4001/get_json/?'
 MIN_LINES = 15
 
-def retrieve_pttgossip(base_url=BASE_URL, data_date=None):
-    if not data_date is None:
-        date_string = '&item_date='+data_date
-    else:
-        date_string = ''
-    #
-    posts = requests.get(base_url+'item_type=posts'+date_string)
-    tfreq = requests.get(base_url+'item_type=termscores'+date_string)
-    # Convert to DataFrame
-    posts = pd.DataFrame(eval(posts.text))
-    tfreq = pd.DataFrame(eval(tfreq.text))
+def retrieve_pttgossip(posts_url='posts.csv', tfreq_url='tfreq.csv'):
+    # Read retrieved DataFrame
+    posts = pd.read_csv(posts_url)
+    tfreq = pd.read_csv(tfreq_url)
     return((posts, tfreq))
 
 
@@ -63,9 +54,9 @@ def evaluate_sentence_embedding(se, term_embeddings, term_weights=None):
     return(score)
 
 
-def generate_starting_sentence(st, min_sentences=10, base_url=BASE_URL, data_date=None, stop_words=STOP_WORDS):
+def generate_starting_sentence(st, min_sentences=10, stop_words=STOP_WORDS):
     ''' Use the seeding information to create the starting sentence. '''
-    posts, tfreq = retrieve_pttgossip(base_url=BASE_URL, data_date=data_date)
+    posts, tfreq = retrieve_pttgossip()
     #
     term_embeddings = st.encode(list(tfreq['term'].iloc[:min_sentences]))
     term_weights = list(tfreq['score'].iloc[:min_sentences])
@@ -287,13 +278,13 @@ def main():
     logging.info('To generate '+str(total_lines)+' sentences starting with ['+seed_sentence+']')
     # Generate followed-up sentences
     output = generate_poem(seed_sentence, model, tokenizer, st, GEN_PARAMS)
-    # done
-    print()
-    print()
-    print(output['title'])
-    print()
-    print()
-    print(output['content'])
+    # Generate output
+    poem_text = output['title']+'\n\n'+output['content']
+    poem_embedding = st.encode(output['content'].replace('\n',','))
+    print('\n'+poem_text)
+    with open('poem.txt', 'w') as f:
+        f.write(poem_text)
+    np.save('poem.npy', np.array(poem_embedding))
     return(0)
 
 #==========
