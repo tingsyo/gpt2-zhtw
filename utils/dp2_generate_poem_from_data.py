@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 '''
 This script creates poem-like paragraphs starting with PTTGOSSIP data.
-
 '''
 from __future__ import print_function
 import logging, os, argparse
@@ -13,74 +12,28 @@ import numpy as np
 import json
 import requests
 
-STOP_WORDS = ['ETtoday','CrazyWinnie', 'ETTODAY', 'YAHOO新聞', 'Yhoo!新聞',
-              '東森新聞','CTWANT','完整新聞標題','完整新聞內文', '-----']
+STOP_WORDS = ['記者','即時報導','ETtoday','新聞文章','ettoday','/','三立','東森']
+IGNORED_WORDS = ['台北','台灣']
 MIN_LINES = 15
 
-def retrieve_pttgossip(posts_url='posts.csv', tfreq_url='tfreq.csv'):
-    # Read retrieved DataFrame
-    posts = pd.read_csv(posts_url)
-    tfreq = pd.read_csv(tfreq_url)
-    return((posts, tfreq))
+def contains_stopwords(string, stop_words):
+    ''' Check if the string contains any of the stop_word'''
+    for w in stop_words:
+        if w in string:
+            return(True)
+    return(False)
 
-
-def article_to_sentences(article, min_length=5):
-    ''' Parse an article into a list sentences. '''
-    # Define sentence-break symbols
-    bs = ['\n','，','。','；','！','？','「','」','.',':','（','）','／','　','~','：','《','》']
-    # Loop through the article character-by-character
-    sentences = []
-    tmp = []
-    for char in article:
-        if not char in bs:
-            tmp.append(char)
-        else:
-            if len(tmp)>=min_length:
-                sentences.append(''.join(tmp).strip())
-            tmp = []
-    return(sentences)
-
-
-def evaluate_sentence_embedding(se, term_embeddings, term_weights=None):
-    ''' Evaluate one embedding vector against a list of embeddings (with weights). '''
-    # Assign equal weights if not specified
-    if term_weights is None:
-        term_weights = np.ones(len(term_embeddings))
-    # Start weighted averaging
-    score = 0
-    for i in range(len(term_embeddings)):
-        score+=np.dot(se, term_embeddings[i])*term_weights[i]
-    score = score/sum(term_weights)
-    return(score)
-
-
-def generate_starting_sentence(st, min_sentences=10, stop_words=STOP_WORDS):
-    ''' Use the seeding information to create the starting sentence. '''
-    posts, tfreq = retrieve_pttgossip()
-    #
-    term_embeddings = st.encode(list(tfreq['term'].iloc[:min_sentences]))
-    term_weights = list(tfreq['score'].iloc[:min_sentences])
-    #
-    sent = []
-    sent_scores = []
-    # Loop through articles
-    for i in range(10):                             # Look at at most 10 articles
-        article = posts['content'].iloc[i]
-        sentences = article_to_sentences(article)
-        # Loop through sentences
-        for s in sentences:
-            if not s in stop_words:
-                se = st.encode(s)
-                sent.append(s)
-                sent_scores.append(evaluate_sentence_embedding(se, term_embeddings, term_weights))
-        # Check total number of sentences
-        if len(sent_scores)>=min_sentences:
-            break
-    # Organize results
-    results = pd.DataFrame({'sentence':sent, 'score':sent_scores})
-    results = results.sort_values('score', ascending=False).reset_index(drop=True)
-    sentence = ''.join(results['sentence'].iloc[:2])
-    logging.debug(results)
+def generate_starting_sentence(candidates, stop_words=STOP_WORDS):
+    ''' Use the cadidates to create the starting sentence. '''
+    filtered = []
+    # Post-processing candidates
+    for i in range(candidates.shape[0]):
+        c = candidates['sentence'].iloc[i]
+        if not contains_stopwords(c, STOP_WORDS):
+            filtered.append(c)
+    # Random sample
+    samples = np.random.choice(filtered, size=2, replace=False)
+    sentence = ''.join(list(samples))
     logging.debug(sentence)
     return(sentence)
 
@@ -274,7 +227,8 @@ def main():
     GEN_PARAMS['total_lines'] = total_lines
     # Generate starting sentence
     logging.info('Generating the starting sentence...')
-    seed_sentence = generate_starting_sentence(st)
+    seed_sentences = pd.read_csv('seed_sentences.csv')
+    seed_sentence = generate_starting_sentence(seed_sentences)
     logging.info('To generate '+str(total_lines)+' sentences starting with ['+seed_sentence+']')
     # Generate followed-up sentences
     output = generate_poem(seed_sentence, model, tokenizer, st, GEN_PARAMS)
