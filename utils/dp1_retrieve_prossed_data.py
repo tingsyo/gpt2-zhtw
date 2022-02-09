@@ -96,7 +96,7 @@ posts, tfreq = retrieve_pttgossip(base_url=BASE_URL, data_date=DATA_DATE)
 posts.to_csv('posts.csv', index=False)
 tfreq.to_csv('tfreq.csv', index=False)
 # Load sentence transformer model
-ST_PATH="D:/workspace/language_models/distiluse-base-multilingual-cased-v2/"
+ST_PATH="../model/distiluse-base-multilingual-cased-v2/"
 st = SentenceTransformer(ST_PATH)
 # Generate canidate sentences
 seed_sentences = generate_starting_sentences(st, posts, tfreq)
