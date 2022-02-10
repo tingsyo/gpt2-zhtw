@@ -11,10 +11,11 @@ import pandas as pd
 import numpy as np
 import json
 import requests
+import re
 
 STOP_WORDS = ['記者','即時報導','ETtoday','新聞文章','ettoday','/','三立','東森']
 IGNORED_WORDS = ['台北','台灣']
-MIN_LINES = 15
+MIN_LINES = 16
 
 def contains_stopwords(string, stop_words):
     ''' Check if the string contains any of the stop_word'''
@@ -32,7 +33,7 @@ def generate_starting_sentence(candidates, stop_words=STOP_WORDS):
         if not contains_stopwords(c, STOP_WORDS):
             filtered.append(c)
     # Random sample
-    samples = np.random.choice(filtered, size=2, replace=False)
+    samples = np.random.choice(filtered, size=1, replace=False)
     sentence = ''.join(list(samples))
     logging.debug(sentence)
     return(sentence)
@@ -78,31 +79,43 @@ def generate_new_sentences(input, tokenizer, model, params):
 def postprocess_generated_sentences(sentences, history_sentences, sent_transformer):
     ''' Post-process the generated paragraph. '''
     # Define sentence-break symbols
-    bs = ['，','。','；','！','？','「','」']
+    bs = ['，','。','；','！','？','「','」']   # Separators
+    bsre = '|'.join(bs)                     # Separators for Regular Expression
     seed_sentence = history_sentences[-1]
     # Loop through all generated snetences
     svecs = []
     stokens = []
     for s in sentences:
         temp = s.replace(seed_sentence, '')     # Remove the seed sentence
-        # Looking for sentence-break symbols
-        idxs = [i for i, x in enumerate(temp) if x in bs]
-        if len(idxs)>1:                         # Keep tokens before the fisrt break
-            tokens = temp[idxs[0]+1:idxs[1]]
-            logging.debug("Take the segment between the 1st and 2nd punchuations. "+str(len(idxs)))
+        # Split the paragraph with break-symbols
+        templist = re.split(bsre, temp)
+        for tokens in templist:
             if tokens.strip()=='':
                 logging.debug("Empty sentence, skip.")
                 continue
             if tokens in history_sentences:
                 logging.debug("Generated senytence already existed, skip.")
                 continue
-        #elif len(idxs)>0:
-        #    tokens = tokens[:idxs[0]]
-        else:                                   # Skip empty sentence
-            logging.debug('The generated sentence is too short, skip it: '+s)
-            continue
-        svec = sent_transformer.encode(tokens)   # Calculate the sentence-embedding vectors of the tokens
-        svecs.append({'sentence':tokens, 'embedding':svec})
+            svec = sent_transformer.encode(tokens)   # Calculate the sentence-embedding vectors of the tokens
+            svecs.append({'sentence':tokens, 'embedding':svec})
+        # # Looking for sentence-break symbols
+        # idxs = [i for i, x in enumerate(temp) if x in bs]
+        # if len(idxs)>1:                         # Keep tokens before the fisrt break
+        #     tokens = temp[idxs[0]+1:idxs[1]]
+        #     logging.debug("Take the segment between the 1st and 2nd punchuations. "+str(len(idxs)))
+        #     if tokens.strip()=='':
+        #         logging.debug("Empty sentence, skip.")
+        #         continue
+        #     if tokens in history_sentences:
+        #         logging.debug("Generated senytence already existed, skip.")
+        #         continue
+        # #elif len(idxs)>0:
+        # #    tokens = tokens[:idxs[0]]
+        # else:                                   # Skip empty sentence
+        #     logging.debug('The generated sentence is too short, skip it: '+s)
+        #     continue
+        # svec = sent_transformer.encode(tokens)   # Calculate the sentence-embedding vectors of the tokens
+        # svecs.append({'sentence':tokens, 'embedding':svec})
     #
     return(svecs)
 
@@ -223,7 +236,7 @@ def main():
     st = SentenceTransformer(WORD_EMBEDDING_PATH)
     # Generate random numbers
     np.random.seed(args.random_seed)                        # Set random-state
-    total_lines = np.random.randint(MIN_LINES,MIN_LINES+10) # Define the total lines
+    total_lines = np.random.randint(MIN_LINES,MIN_LINES+8)  # Define the total lines
     GEN_PARAMS['total_lines'] = total_lines
     # Generate starting sentence
     logging.info('Generating the starting sentence...')
