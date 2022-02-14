@@ -79,7 +79,7 @@ def generate_new_sentences(input, tokenizer, model, params):
 def postprocess_generated_sentences(sentences, history_sentences, sent_transformer):
     ''' Post-process the generated paragraph. '''
     # Define sentence-break symbols
-    bs = ['，','。','；','！','？','「','」']   # Separators
+    bs = ['，','。','；','！','？','「','」','：']   # Separators
     bsre = '|'.join(bs)                     # Separators for Regular Expression
     seed_sentence = history_sentences[-1]
     # Loop through all generated snetences
