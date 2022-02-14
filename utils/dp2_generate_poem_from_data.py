@@ -90,6 +90,9 @@ def postprocess_generated_sentences(sentences, history_sentences, sent_transform
         # Split the paragraph with break-symbols
         templist = re.split(bsre, temp)
         for tokens in templist:
+            if len(tokens.strip())<=3:
+                logging.debug("Short sentence, skip.")
+                continue            
             if tokens.strip()=='':
                 logging.debug("Empty sentence, skip.")
                 continue
