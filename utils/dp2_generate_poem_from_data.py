@@ -79,7 +79,7 @@ def generate_new_sentences(input, tokenizer, model, params):
 def postprocess_generated_sentences(sentences, history_sentences, sent_transformer):
     ''' Post-process the generated paragraph. '''
     # Define sentence-break symbols
-    bs = ['，','。','；','！','？','「','」','：','?']   # Separators
+    bs = ['，','。','；','！','？','「','」','：','\?']   # Separators
     bsre = '|'.join(bs)                     # Separators for Regular Expression
     seed_sentence = history_sentences[-1]
     # Loop through all generated snetences
@@ -144,6 +144,37 @@ def select_next_sentence(candidates, embeddings, back_length=3):
         scores.append(score)
     return(candidates[scores.index(max(scores))])
 
+def select_next_sentences(candidates, embeddings, back_length=3):
+    ''' Select the best few candidates. '''
+    scores = []
+    # Evaluate all candidates
+    for i in range(len(candidates)):
+        score = 0
+        logging.debug(candidates[i]['sentence'])
+        emb_length = len(embeddings)
+        if emb_length<back_length:
+            seed_vec = embeddings[-1]
+            score += np.dot(seed_vec, candidates[i]['embedding'])
+        else:
+            for j in range(emb_length, emb_length-back_length, -1):
+                seed_vec = embeddings[j-1]
+                weight = j-emb_length+back_length
+                weight_sign = (weight%2)==1 and 1 or -1
+                #logging.debug([j, weight, weight_sign])
+                score += np.dot(seed_vec, candidates[i]['embedding'])*(weight)*(weight_sign)
+        logging.debug(score)
+        scores.append(score)
+    # Select candidates with high scores:
+    cand_score = [(x,y) for y,x in sorted(zip(scores, candidates), reverse=True)]
+    selected = []
+    for x,y in cand_score:
+        if y>np.mean(scores):
+            x['score'] = y
+            selected.append(x)
+            #logging.debug(x)
+    # Done
+    return(selected)
+
 def postprocess_poem(sentences):
     ''' Post-process the generated poem. '''
     poem = {'title': sentences[0],
@@ -176,15 +207,15 @@ def generate_poem(seed_sentence, model, tokenizer, st, params):
         generated = generate_new_sentences(seed_sentence, tokenizer, model, params)
         candidates = postprocess_generated_sentences(generated, output, st)
         if len(candidates)>0:
-            selected = select_next_sentence(candidates, embeddings)
+            selected = select_next_sentences(candidates, embeddings)
         else:
             seed_sentence = shuffle_sentence(seed_sentence, new_length=7)
             logging.debug('Generated sentences are not qualified, shuffle the seeding sentence to: '+seed_sentence)
             continue
-        output.append(selected['sentence'])
-        embeddings.append(selected['embedding'])
-        seed_vec = selected['embedding']
-        seed_sentence = selected['sentence']
+        output+=[s['sentence'] for s in selected]
+        embeddings+=[s['embedding'] for s in selected]
+        seed_vec = embeddings[-1]
+        seed_sentence = output[-1]
     # done
     poem = postprocess_poem(output)
     return(poem)
