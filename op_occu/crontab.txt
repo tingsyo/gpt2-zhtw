@@ -1,0 +1,2 @@
+0 2 * * * bash /home/tsyo/bin/pttgossip_daily.sh&> /home/tsyo/work/daily_poem/ptt.log
+0 4 * * * conda activate base; bash /home/tsyo/bin/daily_poem.sh&> /home/tsyo/work/daily_poem/dp.log; conda deactivate
